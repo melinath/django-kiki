@@ -6,41 +6,33 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import simplejson as json
-from stepping_out.mail.validators import EmailNameValidator
 from email.utils import parseaddr
 
 
-SUBSCRIPTION_CHOICES = (
-	('mod', 'Moderators',),
-	('sub', 'Subscribers',),
-	('all', 'Anyone',),
-)
-
-
-class UserEmail(models.Model):
+class EmailAddress(models.Model):
 	email = models.EmailField(unique=True)
 	user = models.ForeignKey(User, related_name='emails', blank=True, null=True)
 
-	def delete(self):
-		user = self.user
-		super(UserEmail, self).delete()
-		if user and user.email == self.email:
-			try:
-				user.email = user.emails.all()[0].email
-			except KeyError:
-				user.email = ''
-			user.save()
-
-	def save(self, *args, **kwargs):
-		super(UserEmail, self).save(*args, **kwargs)
-
-		# replace all references to this instance in mailing lists with its user.
-		subscribed_mailinglists = self.subscribed_mailinglist_set.all()
-		if self.user and subscribed_mailinglists:
-			for mailing_list in subscribed_mailinglists:
-				mailing_list.subscribed_users.add(self.user)
-				mailing_list.subscribed_emails.remove(self)
-
+	#def delete(self):
+	#	user = self.user
+	#	super(EmailAddress, self).delete()
+	#	if user and user.email == self.email:
+	#		try:
+	#			user.email = user.emails.all()[0].email
+	#		except KeyError:
+	#			user.email = ''
+	#		user.save()
+	#
+	#def save(self, *args, **kwargs):
+	#	super(EmailAddress, self).save(*args, **kwargs)
+	#
+	#	# replace all references to this instance in mailing lists with its user.
+	#	subscribed_mailinglists = self.subscribed_mailinglist_set.all()
+	#	if self.user and subscribed_mailinglists:
+	#		for mailing_list in subscribed_mailinglists:
+	#			mailing_list.subscribed_users.add(self.user)
+	#			mailing_list.subscribed_emails.remove(self)
+	
 	def __unicode__(self):
 		return self.email
 
@@ -48,51 +40,17 @@ class UserEmail(models.Model):
 		app_label = 'mail'
 
 
-def sync_user_emails(instance, created, **kwargs):
-	if not created:
-		try:
-			email = UserEmail.objects.get(email=instance.email)
-		except UserEmail.DoesNotExist:
-			email = UserEmail(email=instance.email)
-		email.user = instance
-		email.save()
-
-
-models.signals.post_save.connect(sync_user_emails, sender=User)
-
-def get_email(email):
-	"Return an existing UserEmail instance or None."
-	if isinstance(email, User):
-		return email.emails.get(email=email.email)
-	
-	if isinstance(email, (str, unicode)):
-		email = parseaddr(email)[1]
-		validate_email(email)
-		try:
-			return UserEmail.objects.get(email=email)
-		except UserEmail.DoesNotExist:
-			pass
-
-	if isinstance(email, UserEmail):
-		return email
-
-	return None
-
-
-class MailingListManager(models.Manager):
-	def by_domain(self):
-		"""
-		Returns a dictionary of MailingList objects by domain and address.
-		"""
-		mlists = self.all()
-		by_domain = {}
-		for mlist in mlists:
-			if mlist.site.domain not in by_domain:
-				by_domain[mlist.site.domain] = {}
-
-			by_domain[mlist.site.domain][mlist.address] = mlist
-
-		return by_domain
+#def sync_user_emails(instance, created, **kwargs):
+#	if not created:
+#		try:
+#			email = EmailAddress.objects.get(email=instance.email)
+#		except EmailAddress.DoesNotExist:
+#			email = EmailAddress(email=instance.email)
+#		email.user = instance
+#		email.save()
+#
+#
+#models.signals.post_save.connect(sync_user_emails, sender=User)
 
 
 class MailingList(models.Model):
@@ -100,16 +58,23 @@ class MailingList(models.Model):
 	This model contains all options for a mailing list, as well as some helpful
 	methods for accessing subscribers, moderators, etc.
 	"""
-	# Really this whole address/site thing is ridiculous, but I don't have the
-	# time just now to fix it.
-	DEFAULT_SITE = None
-	objects = MailingListManager()
-
+	MODERATORS = "mod"
+	SUBSCRIBERS = "sub"
+	ANYONE = "all"
+	
+	SUBSCRIPTION_CHOICES = (
+		(MODERATORS, 'Moderators',),
+		(SUBSCRIBERS, 'Subscribers',),
+		(ANYONE, 'Anyone',),
+	)
+	
 	name = models.CharField(max_length=50)
-	address = models.CharField(max_length=100, validators=[EmailNameValidator()])
-	site = models.ForeignKey(Site, verbose_name="@", default=DEFAULT_SITE)
-	help_text = models.TextField(verbose_name='description', blank=True)
-
+	address = models.EmailField()
+	description = models.TextField(blank=True)
+	
+	who_can_post = models.CharField(max_length=3, choices=SUBSCRIPTION_CHOICES)
+	self_subscribe_enabled = models.BooleanField(verbose_name = 'self-subscribe enabled')
+	
 	subscribed_users = models.ManyToManyField(
 		User,
 		related_name = 'subscribed_mailinglist_set',
@@ -123,20 +88,12 @@ class MailingList(models.Model):
 		null = True
 	)
 	subscribed_emails = models.ManyToManyField(
-		UserEmail,
+		EmailAddress,
 		related_name = 'subscribed_mailinglist_set',
 		blank = True,
 		null = True
 	)
-
-	who_can_post = models.CharField(
-		max_length = 3,
-		choices = SUBSCRIPTION_CHOICES
-	)
-	self_subscribe_enabled = models.BooleanField(
-		verbose_name = 'self-subscribe enabled'
-	)
-
+	
 	moderator_users = models.ManyToManyField(
 		User,
 		related_name = 'moderated_mailinglist_set',
@@ -150,7 +107,7 @@ class MailingList(models.Model):
 		null = True
 	)
 	moderator_emails = models.ManyToManyField(
-		UserEmail,
+		EmailAddress,
 		related_name = 'moderated_mailinglist_set',
 		blank = True,
 		null = True
@@ -159,99 +116,74 @@ class MailingList(models.Model):
 	def __unicode__(self):
 		return self.name
 
-	def subscribe(self, email):
-		email = get_email(email) or UserEmail.objects.create(email=email)
-
-		if self.is_subscribed(email):
-			return
-
-		if email.user is None:
-			self.subscribed_emails.add(email)
+	def subscribe(self, obj):
+		if isinstance(obj, EmailAddress):
+			self.subscribed_emails.add(obj)
+		elif isinstance(obj, User):
+			self.subscribed_users.add(obj)
+		elif isinstance(obj, Group):
+			self.subscribed_groups.add(obj)
 		else:
-			self.subscribed_users.add(email.user)
+			raise TypeError(u"Invalid subscriber: %s" % unicode(obj))
 
-	def unsubscribe(self, email):
-		email = get_email(email)
+	def unsubscribe(self, obj):
+		if isinstance(obj, EmailAddress):
+			self.subscribed_emails.remove(obj)
+		elif isinstance(obj, User):
+			self.subscribed_users.remove(obj)
+		elif isinstance(obj, Group):
+			self.subscribed_groups.remove(obj)
+		else:
+			raise TypeError(u"Invalid subscriber: %s" % unicode(obj))
+	
+	def is_subscriber(self, obj):
+		if isinstance(obj, EmailAddress):
+			return obj in self.subscribed_emails.all()
+		elif isinstance(obj, User):
+			return obj in self.subscribed_users.all()
+		elif isinstance(obj, Group):
+			return obj in self.subscribed_groups.all()
+		else:
+			raise TypeError(u"Invalid subscriber: %s" % unicode(obj))
 
-		if email is None:
-			return
-
-		self.subscribed_emails.remove(email)
-		if email.user is not None:
-			self.subscribed_users.remove(email.user)
-
-	def is_subscribed(self, email):
-		# Subscribed means explicitly subscribed - not subscribed as part of a
-		# group or position.
-		email = get_email(email)
-
-		if email is None:
-			return False
-
-		if email in self.subscribed_emails.all():
-			return True
-
-		if self.subscribed_users.filter(emails=email):
-			return True
-
-		return False
-
-	def is_in_subscribed(self, email):
-		email = get_email(email)
-
-		if email is None or email.user is None:
-			return False
-
-		if self.subscribed_groups.filter(users__emails=email):
-			return True
-
-		return False
+	def is_implicit_subscriber(self, obj):
+		if isinstance(obj, EmailAddress):
+			return obj.user and (self.is_subscriber(obj.user) or self.is_implicit_subscriber(obj.user))
+		elif isinstance(obj, User):
+			return bool(self.subscribed_groups.filter(users=obj))
+		elif isinstance(obj, Group):
+			raise TypeError(u"Groups cannot be implicit subscribers.")
+		else:
+			raise TypeError(u"Invalid subscriber: %s" % unicode(obj))
 
 	def is_moderator(self, email):
-		# This means explicitly a moderator - not a moderator as part of a
-		# group or position.
-		email = get_email(email)
+		if isinstance(obj, EmailAddress):
+			return obj in self.moderator_emails.all()
+		elif isinstance(obj, User):
+			return obj in self.moderator_users.all()
+		elif isinstance(obj, Group):
+			return obj in self.moderator_groups.all()
+		else:
+			raise TypeError(u"Invalid moderator: %s" % unicode(obj))
 
-		if email is None:
-			return False
+	def is_implicit_moderator(self, email):
+		if isinstance(obj, EmailAddress):
+			return obj.user and (self.is_moderator(obj.user) or self.is_implicit_moderator(obj.user))
+		elif isinstance(obj, User):
+			return bool(self.moderator_groups.filter(users=obj))
+		elif isinstance(obj, Group):
+			raise TypeError(u"Groups cannot be implicit moderators.")
+		else:
+			raise TypeError(u"Invalid moderator: %s" % unicode(obj))
 
-		if email in self.moderator_emails.all():
-			return True
-
-		if self.moderator_users.filter(emails=email):
-			return True
-
-		return False
-
-	def is_in_moderator(self, email):
-		email = get_email(email)
-
-		if email is None or email.user is None:
-			return False
-
-		if self.moderator_groups.filter(users__emails=email):
-			return True
-
-		return False
-
-	def can_post(self, email):
-		email = get_email(email)
-
+	def can_post(self, obj)
 		if self.who_can_post == 'all':
 			return True
-
-		if self.who_can_post == 'sub' and (self.is_subscribed(email) or self.is_in_subscribed(email)):
+		
+		if self.who_can_post == 'sub' and (self.is_subscriber(obj) or self.is_implicit_subscriber(obj)):
 			return True
-
-		if self.is_moderator(email) or self.is_in_moderator(email):
+		
+		if self.is_moderator(obj) or self.is_implicit_moderator(obj):
 			return True
-
+		
 		return False
-
-	@property
-	def full_address(self):
-		return '%s@%s' % (self.address, self.site.domain)
-
-	class Meta:
-		unique_together = ('site', 'address',)
-		app_label = 'mail'
