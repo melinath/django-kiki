@@ -6,7 +6,17 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import simplejson as json
-from email.utils import parseaddr
+
+from email import message_from_string
+from email.utils import parseaddr, formatdate, make_msgid, getaddresses
+
+from kiki.message import Message as KikiMessage
+from kiki.validators import validate_local_part
+import cPickle, datetime
+
+
+class NoAddressesFound(Exception):
+	pass
 
 
 class EmailAddress(models.Model):
@@ -53,11 +63,31 @@ class EmailAddress(models.Model):
 #models.signals.post_save.connect(sync_user_emails, sender=User)
 
 
+class MailingListManager(models.Manager):
+	def for_site(self, site):
+		return self.filter(site=site)
+	
+	def for_addresses(self, addresses):
+		"""Takes a an iterable of (local_part, domain_name) tuples and returns
+		a queryset of mailinglists attached to the current site with matching
+		local parts."""
+		site = Site.objects.get_current()
+		
+		valid_local_parts = [address[0] for address in addresses if address[1] == site.domain_name]
+		
+		if not valid_local_parts:
+			return self.none()
+		
+		return self.filter(site=site, local_part__in=valid_local_parts)
+
+
 class MailingList(models.Model):
 	"""
 	This model contains all options for a mailing list, as well as some helpful
 	methods for accessing subscribers, moderators, etc.
 	"""
+	objects = MailingListManager()
+	
 	MODERATORS = "mod"
 	SUBSCRIBERS = "sub"
 	ANYONE = "all"
@@ -69,7 +99,8 @@ class MailingList(models.Model):
 	)
 	
 	name = models.CharField(max_length=50)
-	address = models.EmailField()
+	local_part = models.CharField(max_length=64, validators=[validate_local_part])
+	domain = models.ForeignKey(Site)
 	description = models.TextField(blank=True)
 	
 	who_can_post = models.CharField(max_length=3, choices=SUBSCRIPTION_CHOICES)
@@ -112,10 +143,17 @@ class MailingList(models.Model):
 		blank = True,
 		null = True
 	)
-
+	
+	@property
+	def address(self):
+		return '@'.join((self.local_part, self.domain.domain_name))
+	
 	def __unicode__(self):
 		return self.name
-
+	
+	def clean(self):
+		validate_email(self.address)
+	
 	def subscribe(self, obj):
 		if isinstance(obj, EmailAddress):
 			self.subscribed_emails.add(obj)
@@ -187,3 +225,79 @@ class MailingList(models.Model):
 			return True
 		
 		return False
+
+
+class Processing(models.Model):
+	RECEIVED = "0"
+	REJECTED = "1"
+	PROCESSED = "2"
+	
+	# Should there be distinctions of why it was rejected? Perhaps just enter
+	# that into the errors field.
+	STATUS_CHOICES = (
+		(RECEIVED, "Received"),
+		(REJECTED, "Rejected"),
+		#(ACCEPTED, "Accepted"),
+		(PROCESSED, "Processed"),
+	)
+	status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=RECEIVED)
+	error = models.TextField(blank=True, help_text="This field will be filled with error data if any problems occur during message processing.")
+	
+	mailing_list = models.ForeignKey(MailingList)
+	message = models.ForeignKey(Message)
+	
+	class Meta:
+		unique_together = ('mailing_list', 'message')
+
+
+class MessageManager(models.Model):
+	def receive(self, text):
+		"Returns a created Message instance or None."
+		msg = message_from_string(text, KikiMessage)
+		
+		# Check whether the message should even be received.
+		# First collect a set of addresses.
+		headers = ['to', 'cc', 'resent-to', 'resent-cc']
+		addresses = set()
+		for header in headers:
+			# Discard the name portion of each address and split it into local_part, domain_name tuples.
+			addresses |= set([tuple(address.rsplit('@', 1)) for address in get_addresses(msg.get_all(header, []))])
+		
+		if not addresses:
+			return None
+		
+		mailing_lists = MailingList.objects.for_addresses(addresses)
+		
+		if not mailing_lists:
+			return None
+		
+		# Set some headers that need to be there.
+		if 'message-id' not in msg:
+			msg['Message-ID'] = make_msgid()
+		if 'date' not in msg:
+			msg['Date'] = formatdate()
+		
+		message = Message(message_id=msg['message-id'], received_at=datetime.datetime.now())
+		message.message = cPickle.dumps(msg, cPickle.HIGHEST_PROTOCOL)
+		message.save()
+		
+		for mailing_list in mailing_lists:
+			Processing.objects.create(
+				mailing_list = mailing_list,
+				message = message,
+				status = Processing.RECEIVED
+			)
+		
+		return message
+
+
+class Message(models.Model):
+	objects = MessageManager()
+	
+	mailing_lists = models.ManyToManyField(MailingList, through=Processing)
+	message_id = models.CharField(max_length=255, unique=True)
+	received_at = models.DateTimeField()
+	
+	# This should be a custom field & descriptor to handle cached message parsing.
+	# Or perhaps a PickleField?
+	message = models.TextField(help_text="The original raw text of the message (pickled).")

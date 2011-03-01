@@ -4,12 +4,29 @@ from django.utils.translation import ugettext_lazy as _
 import re
 
 
-pattern = email_re.pattern.split('@')
+__all__ = ('EmailDomainValidator', 'EmailNameValidator')
 
 
-class EmailNameValidator(RegexValidator):
-	regex = re.compile(pattern[0] + '$', re.IGNORECASE)
+local_part_re, domain_name_re = email_re.pattern.split('@')
 
 
-class EmailDomainValidator(RegexValidator):
-	regex = re.compile('^' + pattern[1], re.IGNORECASE)
+validate_local_part = RegexValidator(local_part_re, _(u'Enter a valid email local part.'), 'invalid')
+
+
+class DomainNameValidator(RegexValidator):
+	def __call__(self, value):
+		try:
+			super(DomainNameValidator, self).__call__(value)
+		except ValidationError, e:
+			# Trivial case failed. Try for possible IDN domain-part
+			if value:
+				try:
+					value = value.encode('idna')
+				except UnicodeError:
+					raise e
+				super(DomainNameValidator, self).__call__(value)
+			else:
+				raise
+
+
+validate_domain_name = DomainNameValidator(domain_name_re, _(u'Enter a valid domain name.'), 'invalid')
