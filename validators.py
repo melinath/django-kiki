@@ -30,3 +30,10 @@ class DomainNameValidator(RegexValidator):
 
 
 validate_domain_name = DomainNameValidator(domain_name_re, _(u'Enter a valid domain name.'), 'invalid')
+
+
+def validate_not_command(value):
+	from kiki.models import MailingList
+	local_part, command = value.rsplit('-', 1)
+	if command in MailingList.COMMANDS:
+		raise ValidationError(u"`%s` is a command and cannot be used as part of an email address." % command)
