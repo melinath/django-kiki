@@ -1,29 +1,48 @@
 from django.core.exceptions import ValidationError
-from django.core.mail import get_connection
+from django.core.mail import get_connection, send_mail
+from django.template import Context, loader
 from django.template.defaultfilters import capfirst
 from email.utils import formatdate, make_msgid, getaddresses
 from smtplib import SMTPException
-from kiki.commands import add_list_command_headers
+from kiki.commands import add_list_command_headers, get_command
 
 
 COMMASPACE = ', '
 
-# Supposedly, sending to > 49 people at once results in spam flags flying.
-# If this turns out not to be the case, this should be 99. See
-# http://people.dsv.su.se/~jpalme/ietf/mailing-list-behaviour.txt
-MAX_SMTP_RECIPS = 49
+# See http://people.dsv.su.se/~jpalme/ietf/mailing-list-behaviour.txt
+MAX_SMTP_RECIPS = 99
 
 
-def add_emails_to_list(mailing_list, emails):
-	errors = []
-	for email in emails:
-		try:
-			mailing_list.subscribe(email)
-		except ValidationError, e:
-			errors.append(e)
-			continue
+#def add_emails_to_list(mailing_list, emails):
+#	errors = []
+#	for email in emails:
+#		try:
+#			mailing_list.subscribe(email)
+#		except ValidationError, e:
+#			errors.append(e)
+#			continue
+#	
+#	return errors
+
+
+def make_confirmation_link(mailing_list, email):
+	pass
+
+
+def send_confirmation_email(mailing_list, email, template_name):
+	from_email = get_command('bounce').get_address(mailing_list)
+	unsubscribe = get_command('unsubscribe').get_address(mailing_list)
 	
-	return errors
+	context = {
+		'mailing_list': mailing_list,
+		'email': email,
+		'link': make_confirmation_link(mailing_list, email),
+		'unsubscribe': unsubscribe,
+	}
+	t = loader.get_template(template_name)
+	body = t.render(Context(context))
+	to = [email.email]
+	send_mail("Confirm subscription", body, from_email, to)
 
 
 def precook_headers(msg):
@@ -77,7 +96,7 @@ def cook_headers(msg, mailing_list):
 	
 	# add a subject prefix for this list.
 	if mailing_list.subject_prefix:
-		subject = msg.get('subject', '(no subject)'))
+		subject = msg.get('subject', '(no subject)')
 		del msg['subject']
 		msg['subject'] = "[%s] %s" % (mailing_list.subject_prefix, subject)
 

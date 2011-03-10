@@ -1,0 +1,3 @@
+{% comment %}This should be a whatchamacallit... {% endcomment %}
+You've asked to be subscribed to {{ mailing_list.name }}. If this is correct,
+please go to {{ link }} to confirm your subscription.
