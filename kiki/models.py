@@ -19,34 +19,7 @@ from kiki.utils import precook_headers, cook_headers, send_mail
 import cPickle, datetime
 
 
-class NoAddressesFound(Exception):
-	pass
-
-
-class EmailAddress(models.Model):
-	UNCONFIRMED = 0
-	CONFIRMED = 1
-	BROKEN = 2
-	BLACKLISTED = 3
-	STATUS_CHOICES = (
-		(UNCONFIRMED, u'Unconfirmed'),
-		(CONFIRMED, u'Confirmed'),
-		(BROKEN, u'Broken'),
-		(BLACKLISTED, u'Blacklisted'),
-	)
-	
-	email = models.EmailField(unique=True)
-	user = models.ForeignKey(User, related_name='emails', blank=True, null=True)
-	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, default=UNCONFIRMED, db_index=True)
-	
-	def __unicode__(self):
-		return self.email
-
-	class Meta:
-		verbose_name_plural = 'email addresses'
-
-
-class ListEmailMetadata(models.Model):
+class ListUserMetadata(models.Model):
 	UNCONFIRMED = 0
 	SUBSCRIBER = 1
 	MODERATOR = 2
@@ -59,7 +32,7 @@ class ListEmailMetadata(models.Model):
 		(BLACKLISTED, u'Blacklisted'),
 	)
 	
-	email = models.ForeignKey(EmailAddress)
+	user = models.ForeignKey(User)
 	mailing_list = models.ForeignKey('MailingList')
 	
 	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, default=UNCONFIRMED, db_index=True)
@@ -76,17 +49,23 @@ class MailingListManager(models.Manager):
 		return self.filter(site=site)
 	
 	def for_addresses(self, addresses):
-		"""Takes a an iterable of (local_part, domain_name) tuples and returns
-		a queryset of mailinglists attached to the current site with matching
-		local parts."""
+		"""
+		Takes a an iterable of email addresses and returns a queryset of mailinglists attached to the current site with matching local parts.
+		
+		"""
 		site = Site.objects.get_current()
 		
-		valid_local_parts = [address[0] for address in addresses if address[1] == site.domain_name]
+		local_parts = []
 		
-		if not valid_local_parts:
+		for addr in addresses:
+			addr = addr.rsplit('@', 1)
+			if addr[1] == site.domain_name:
+				local_parts.append(addr[0])
+		
+		if not local_parts:
 			return self.none()
 		
-		return self.filter(site=site, local_part__in=valid_local_parts)
+		return self.filter(site=site, local_part__in=local_parts)
 
 
 class MailingList(models.Model):
@@ -113,16 +92,24 @@ class MailingList(models.Model):
 	description = models.TextField(blank=True)
 	
 	who_can_post = models.CharField(max_length=3, choices=SUBSCRIPTION_CHOICES)
-	self_subscribe_enabled = models.BooleanField(verbose_name = 'self-subscribe enabled')
+	self_subscribe_enabled = models.BooleanField(verbose_name='self-subscribe enabled')
+	moderation_enabled = models.BooleanField(help_text="If enabled, messages will be marked ``Requires Moderation`` and an email will be sent to the list's moderators.")
 	# If is_anonymous becomes an option, the precooker will need to handle some anonymizing.
 	#is_anonymous = models.BooleanField()
 	
-	emails = models.ManyToManyField(
-		EmailAddress,
+	users = models.ManyToManyField(
+		User,
 		related_name = 'mailinglists',
 		blank = True,
 		null = True,
-		through = ListEmailMetadata
+		through = ListUserMetadata
+	)
+	messages = models.ManyToManyField(
+		'Message',
+		related_name = 'mailinglists',
+		blank = True,
+		null = True,
+		through = 'ListMessage'
 	)
 	
 	@property
@@ -151,35 +138,25 @@ class MailingList(models.Model):
 		qs = qs.filter(listemailmetadata_set__mailing_list=self, listemailmedatata_set__status__in=[ListEmailMetadata.SUBSCRIBER, ListEmailMetaData.MODERATOR])
 		return qs.values_list('email', flat=True).distinct()
 	
-	def is_subscriber(self, email):
+	def _is_email_with_status(self, email, status):
 		if isinstance(email, basestring):
-			try:
-				self.listemailmetadata_set.get(status=ListEmailMetadata.SUBSCRIBER, email__email__iexact=email)
-				return True
-			except ListEmailMetadata.DoesNotExist:
-				pass
-		elif isinstance(email, EmailAddress):
-			try:
-				self.listemailmetadata_set.get(status=ListEmailMetadata.SUBSCRIBER, email=email)
-				return True
-			except ListEmailMetadata.DoesNotExist:
-				pass
-		return False
+			kwargs = {'user__email__iexact': email}
+		elif isinstance(email, User):
+			kwargs = {'user': email}
+		else:
+			return False
+		
+		try:
+			self.listemailmetadata_set.get(status=status, **kwargs)
+		except ListEmailMetadata.DoesNotExist:
+			return False
+		return True
+	
+	def is_subscriber(self, email):
+		return self._is_email_with_status(email, ListEmailMetadata.SUBCRIBER)
 	
 	def is_moderator(self, email):
-		if isinstance(email, basestring):
-			try:
-				self.listemailmetadata_set.get(status=ListEmailMetadata.MODERATOR, email__email__iexact=email)
-				return True
-			except ListEmailMetadata.DoesNotExist:
-				pass
-		elif isinstance(email, EmailAddress):
-			try:
-				self.listemailmetadata_set.get(status=ListEmailMetadata.MODERATOR, email=email)
-				return True
-			except ListEmailMetadata.DoesNotExist:
-				pass
-		return False
+		return self._is_email_with_status(email, ListEmailMetadata.MODERATOR)
 	
 	def can_post(self, email):
 		if self.who_can_post == MailingList.ANYONE:
@@ -194,116 +171,101 @@ class MailingList(models.Model):
 		return False
 
 
-class MessageManager(models.Model):
-	def receive(self, text):
-		"Returns a created Message instance or None."
-		msg = message_from_string(text, KikiMessage)
-		
-		# Check whether the message should even be received.
-		# First collect a set of addresses.
-		headers = ['to', 'cc', 'resent-to', 'resent-cc']
-		addresses = set()
-		address_commands = {}
-		forwards = set()
-		for header in headers:
-			# Discard the name portion of each address and split it into local_part, domain_name tuples.
-			for address in getaddresses(msg.get_all(header, [])):
-				local_part, domain_name = address[1].rsplit('@', 1)
-				local_part, command = local_part.rsplit('-', 1)
-				
-				if is_command(command):
-					address_commands.setdefault((local_part, domain_name), []).append(command)
-				else:
-					local_part = '-'.join(local_part, command)
-					forwards.add((local_part, domain_name))
-				
-				addresses.add((local_part, domain_name))
-		
-		if not addresses:
-			return None
-		
-		mailing_lists = MailingList.objects.for_addresses(addresses)
-		
-		if not mailing_lists:
-			return None
-		
-		# TODO: Handle commands here! I.e. if something only has a subscribe command,
-		# we should just run it without saving the email to the db.... or should we?
-		# DB Logging?
-		
-		# Set some headers that need to be there, and remove some others.
-		precook_headers(msg)
-		
-		message = Message(message_id=msg['message-id'], received_at=datetime.datetime.now())
-		message.message = cPickle.dumps(msg, cPickle.HIGHEST_PROTOCOL)
-		message.save()
-		
-		for mailing_list in mailing_lists:
-			attempt = ProcessingAttempt(mailing_list=mailing_list, message=message)
-			attempt.process()
-		
-		return message
-
-
 class Message(models.Model):
-	objects = MessageManager()
+	"""
+	Represents an email received by Kiki. Stores the original received message as well as a pickled version of the processed message.
 	
-	message_id = models.CharField(max_length=255, unique=True)
-	received = models.DateTimeField()
-	
-	# This should be a custom field & descriptor to handle cached message parsing.
-	# Or perhaps a PickleField?
-	message = models.TextField(help_text="The original raw text of the message (pickled).")
-	
-	@property
-	def processed(self):
-		return bool(self.processing_attempts.filter(status=ProcessingAttempt.PROCESSED))
-
-
-class ProcessingAttempt(models.Model):
-	UNPROCESSED = "u"
-	ERROR = "e"
-	REJECTED = "r"
-	PROCESSED = "p"
+	"""
+	RECEIVED = 1
+	ATTACHED = 2
+	COMMANDS = 3
+	ATT_COMM = 4
 	
 	STATUS_CHOICES = (
-		(UNPROCESSED, "Unprocessed"),
-		(ERROR, "Error"),
-		(REJECTED, "Rejected"),
-		(PROCESSED, "Processed"),
+		(RECEIVED, 'Received'),
+		(ATTACHED, 'Attached to mailing lists'),
+		(COMMANDS, 'Commands run'),
+		(ATT_COMM, 'Attached to mailing lists and commands run')
 	)
-	status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=UNPROCESSED, db_index=True)
 	
-	error = models.TextField(blank=True, help_text="This field will be filled with error data if any problems occur during message processing.")
+	message_id = models.CharField(max_length=255, unique=True)
+	#: The message_id of the email this is in reply to.
+	# in_reply_to = models.CharField(max_length=255, db_index=True, blank=True)
+	from_email = models.EmailField()
 	
+	received = models.DateTimeField()
+	
+	status = models.PositiveIntegerField(choices=STATUS_CHOICES, db_index=True, default=RECEIVED)
+	
+	original_message = models.TextField(help_text="The original raw text of the message.")
+	
+	processed_message = models.TextField(help_text="The processed form of the message at the current stage (pickled).", blank=True)
+	
+	def set_processed(self, msg):
+		# TODO: Make this a PickleField.
+		self.processed_message = cPickle.dumps(msg, cPickle.HIGHEST_PROTOCOL)
+		self._processed = msg
+	
+	def get_processed(self):
+		if not hasattr(self, '_processed'):
+			self._processed = cPickle.loads(self.processed_message)
+		return self._processed
+
+
+class ListMessage(models.Model):
+	"""
+	Represents the relationship between a :class:`Message` and a :class:`MailingList`. This is what is processed to handle the sending of a message to a list rather than the original message.
+	
+	"""
+	UNPROCESSED = 1
+	REQUIRES_MODERATION = 2
+	REJECTED = 3
+	ACCEPTED = 4
+	PREPPED = 5
+	SENT = 6
+	
+	STATUS_CHOICES = (
+		(UNPROCESSED, 'Unprocessed'),
+		(REQUIRES_MODERATION, 'Requires Moderation'),
+		(REJECTED, 'Rejected'),
+		(ACCEPTED, 'Accepted'),
+		(PREPPED, 'Prepped'),
+		(SENT, 'Sent'),
+	)
+	
+	message = models.ForeignKey(Message)
 	mailing_list = models.ForeignKey(MailingList)
-	message = models.ForeignKey('Message', related_name="processing_attempts")
-	timestamp = models.DateTimeField(auto_now_add=True)
+	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True, default=UNPROCESSED)
 	
-	def process(self, connection=None):#, retry=False):
-		"""
-		Try to process the message, and return a ProcessingAttempt,
-		either self or a new attempt. TODO: Should this just always return a
-		new instance?
-		"""
-		if self.status == self.PROCESSED:
-			# We've done this already. Return self.
-			return self
-		elif self.status != self.UNPROCESSED:
-			# Make a new ProcessingAttempt and return the results of its processing.
-			attempt = ProcessingAttempt(mailing_list=self.mailing_list, message=self.message)
-			return attempt.process(connection)
-		else:
-			# Process! Woot!
-			# 1. unpickle
-			# 2. cook the message headers.
-			# 3. gather recipients for the list.
-			# 4. send the message.
-			msg = cPickle.loads(self.message.message)
-			cook_headers(msg, self.mailing_list)
-			
-			recipients = self.mailing_list.get_recipients()
-			send_mail(msg, recipients, connection)
+	processed_message = models.TextField(help_text="The processed form of the message at the current stage (pickled).", blank=True)
+	
+	def set_processed(self, msg):
+		# TODO: Make this a PickleField.
+		self.processed_message = cPickle.dumps(msg, cPickle.HIGHEST_PROTOCOL)
+		self._processed = msg
+	
+	def get_processed(self):
+		if not hasattr(self, '_processed'):
+			self._processed = cPickle.loads(self.processed_message)
+		return self._processed
 	
 	class Meta:
-		get_latest_by = 'timestamp'
+		unique_together = ('message', 'mailing_list',)
+
+
+class ListCommand(models.Model):
+	UNPROCESSED = 1
+	REJECTED = 2
+	ACCEPTED = 3
+	COMPLETED = 4
+	
+	STATUS_CHOICES = (
+		(UNPROCESSED, 'Unprocessed'),
+		(REJECTED, 'Rejected'),
+		(ACCEPTED, 'Accepted'),
+		(COMPLETED, 'Completed'),
+	)
+	
+	message = models.ForeignKey(Message)
+	mailing_list = models.ForeignKey(MailingList)
+	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True, default=UNPROCESSED)
