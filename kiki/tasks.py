@@ -1,12 +1,14 @@
 from datetime import datetime
 from email import message_from_string
+import smtplib
+from socket import error as socket_error
 
 from celery.decorators import task
-from django.core.mail.message import make_msgid
+from django.core.mail import get_connection
 from django.db.models import Q
 
 from kiki.models import Message, ListMessage
-from kiki.utils import message_to_django, sanitize_headers
+from kiki.utils import message_to_django, sanitize_headers, set_list_headers, set_user_headers
 
 @task
 def receive_email(msg_str):
@@ -113,12 +115,16 @@ def prep_list_message(list_msg_id):
 	
 	"""
 	try:
-		list_msg = ListMessage.objects.get(pk=list_msg_id, status=ListMessage.ACCEPTED)
+		list_msg = ListMessage.objects.select_related('mailing_list').get(pk=list_msg_id, status=ListMessage.ACCEPTED)
 	except ListMessage.DoesNotExist:
 		return
 	
 	list_msg.status = ListMessage.PREPPED
 	list_msg.save()
+	
+	msg = list_msg.get_processed()
+	set_list_headers(msg, list_msg.mailing_list)
+	list_msg.set_processed(msg)
 
 
 @task
@@ -128,9 +134,29 @@ def send_list_message(list_msg_id):
 	
 	"""
 	try:
-		list_msg = ListMessage.objects.get(pk=list_msg_id, status=ListMessage.PREPPED)
+		list_msg = ListMessage.objects.select_related('mailing_list').get(pk=list_msg_id, status=ListMessage.PREPPED)
 	except ListMessage.DoesNotExist:
 		return
 	
 	list_msg.status = ListMessage.SENT
 	list_msg.save()
+	
+	msg = list_msg.get_processed()
+	recipients = list_msg.mailing_list.get_recipients().only('email')
+	
+	connection = None
+	failed = []
+	
+	for user in recipients:
+		set_user_headers(msg, user)
+		# Try/catch similar to django-mailer.
+		try:
+			if connection is None:
+				connection = msg.get_connection()
+			msg.connection = connection
+			msg._recipients = [user.email]
+			msg.send()
+		except (socket_error, smtplib.SMTPSenderRefused, smtplib.SMTPRecipientsRefused, smtplib.SMTPAuthenticationError):
+			failed.append(user)
+			# reset the connection.
+			connection = None

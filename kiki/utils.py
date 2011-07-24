@@ -1,7 +1,9 @@
 from email.utils import get_addresses
 
-from django.core.mail.message import EmailMessage, make_msgid
+from django.core.mail.message import make_msgid
 from django.utils.translation import ugettext_lazy as _
+
+from kiki.message import KikiMessage
 
 
 NO_SUBJECT = _(u"(no subject)")
@@ -47,7 +49,7 @@ def sanitize_headers(msg):
 
 
 def message_to_django(msg):
-	"""Given a python :class:`email.Message` object, return a corresponding class:`django.core.mail.EmailMessage` object."""
+	"""Given a python :class:`email.Message` object, return a corresponding class:`kiki.message.KikiMessage` object."""
 	payload = msg.get_payload()
 	if msg.is_multipart():
 		# TODO: is this the correct way to determine "body" vs "attachments"?
@@ -74,7 +76,7 @@ def message_to_django(msg):
 		'headers': headers,
 		'cc': cc
 	}
-	return EmailMessage(**kwargs)
+	return KikiMessage(**kwargs)
 
 
 def set_list_headers(msg, list_):
