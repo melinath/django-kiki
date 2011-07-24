@@ -6,7 +6,7 @@ from django.core.mail.message import make_msgid
 from django.db.models import Q
 
 from kiki.models import Message, ListMessage
-from kiki.new_utils import message_to_django
+from kiki.utils import message_to_django, sanitize_headers
 
 @task
 def receive_email(msg_str):
@@ -15,8 +15,9 @@ def receive_email(msg_str):
 	
 	"""
 	received = datetime.now()
-	msg = message_from_string(msg_str)
-	msg = message_to_django(msg)
+	python_msg = message_from_string(msg_str)
+	sanitize_headers(python_msg)
+	msg = message_to_django(python_msg)
 	msg_id = msg.extra_headers['message-id']
 	
 	# If the msg_id already exists in the database, then ignore this message.

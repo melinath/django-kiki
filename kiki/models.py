@@ -114,10 +114,16 @@ class MailingList(models.Model):
 	
 	@property
 	def address(self):
-		return '@'.join((self.local_part, self.domain.domain))
+		return "%s@%s" % (self.local_part, self.domain.domain)
 	
-	@property
-	def list_id_header(self):
+	def _command_header(self, command_str=None):
+		if command_str:
+			addr = "%s+%s@%s" % (self.local_part, command_str, self.domain.domain)
+		else:
+			addr = self.address
+		return "<mailto:%s>" % addr
+	
+	def _list_id_header(self):
 		# Does this need to be a byte string?
 		return smart_str(u"%s <%s.%s>" % (self.name, self.local_part, self.domain.domain))
 	
@@ -269,3 +275,5 @@ class ListCommand(models.Model):
 	message = models.ForeignKey(Message)
 	mailing_list = models.ForeignKey(MailingList)
 	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True, default=UNPROCESSED)
+	
+	command = models.CharField(max_length=20)

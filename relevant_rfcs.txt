@@ -1,0 +1,14 @@
+Appropriate Mailing List Behavior
+http://people.dsv.su.se/~jpalme/ietf/mailing-list-behaviour.txt
+
+List Email Headers
+http://www.jamesshuggins.com/h/web1/list-email-headers.htm
+
+Common Internet Message Headers
+http://www.faqs.org/rfcs/rfc2076.html
+
+Mailbox Names for Common Services, Roles and Functions
+http://www.faqs.org/rfcs/rfc2142.html
+
+The Use of URLs as Meta-Syntax for Core Mail List Commands and their Transport through Message Header Fields
+http://www.faqs.org/rfcs/rfc2369.html
