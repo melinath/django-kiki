@@ -18,9 +18,8 @@ from django.utils.encoding import smart_str
 
 
 from kiki.commands import is_command
-from kiki.message import Message as KikiMessage
+from kiki.message import KikiMessage
 from kiki.validators import validate_local_part, validate_not_command
-from kiki.utils import precook_headers, cook_headers, send_mail
 
 
 class ListUserMetadata(models.Model):
@@ -42,10 +41,10 @@ class ListUserMetadata(models.Model):
 	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, default=UNCONFIRMED, db_index=True)
 	
 	def __unicode__(self):
-		return u"%s - %s - %s" % (self.email, self.mailing_list, self.get_status_display())
+		return u"%s - %s - %s" % (self.user, self.mailing_list, self.get_status_display())
 	
 	class Meta:
-		unique_together = ('email', 'mailing_list')
+		unique_together = ('user', 'mailing_list')
 
 
 class MailingListManager(models.Manager):
@@ -138,7 +137,7 @@ class MailingList(models.Model):
 		validate_email(self.address)
 		
 		# As per RFC 2919, the list_id_header has a max length of 255 octets.
-		if len(self.list_id_header) > 254:
+		if len(self._list_id_header()) > 254:
 			# Allow 4 extra spaces: the delimiters, the space, and the period.
 			raise ValidationError("The list name, local part, and site domain name can be at most 250 characters long together.")
 	

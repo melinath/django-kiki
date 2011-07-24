@@ -10,7 +10,8 @@ from django.db.models import Q
 from kiki.models import Message, ListMessage
 from kiki.utils import message_to_django, sanitize_headers, set_list_headers, set_user_headers
 
-@task
+
+@task(ignore_result=True)
 def receive_email(msg_str):
 	"""
 	Given a string representation of an email message, parse it into a Django EmailMessage. Once this succeeds, the result should be stored in the database and added to the queue for further processing.
@@ -29,9 +30,11 @@ def receive_email(msg_str):
 		message = Message(message_id=msg_id, received=received, original_message=msg_str, from_email=msg.from_email)
 		message.set_processed(msg)
 		message.save()
+		attach_message_to_lists.delay(message.pk)
+		create_message_commands.delay(message.pk)
 
 
-@task
+@task(ignore_result=True)
 def attach_message_to_lists(msg_id):
 	"""
 	Attaches the message with the given id to the appropriate email lists.
@@ -48,7 +51,8 @@ def attach_message_to_lists(msg_id):
 		msg.status = msg.ATT_COMM
 	msg.save()
 	
-	recipients = msg.get_processed().recipients()
+	pmsg = msg.get_processed()
+	recipients = pmsg.to + pmsg.cc + pmsg.bcc
 	if not recipients:
 		return
 	
@@ -56,9 +60,10 @@ def attach_message_to_lists(msg_id):
 	
 	for list_ in lists:
 		list_msg = ListMessage.objects.create(message=msg, mailing_list=list_, processed_message=msg.processed_message)
+		check_list_message_perms.delay(list_msg.pk)
 
 
-@task
+@task(ignore_result=True)
 def create_message_commands(msg_id):
 	"""
 	Create the commands represented by the message with the given id.
@@ -67,7 +72,7 @@ def create_message_commands(msg_id):
 	pass
 
 
-@task
+@task(ignore_result=True)
 def check_command_perms(cmd_id):
 	"""
 	Checks whether the message has the required permissions to execute the given command.
@@ -76,7 +81,7 @@ def check_command_perms(cmd_id):
 	pass
 
 
-@task
+@task(ignore_result=True)
 def run_command(cmd_id):
 	"""
 	Runs the given command.
@@ -85,14 +90,14 @@ def run_command(cmd_id):
 	pass
 
 
-@task
+@task(ignore_result=True)
 def check_list_message_perms(list_msg_id):
 	"""
 	Checks whether the message sent to a particular list has the required permissions and marks it either as ``Accepted``, ``Rejected``, or ``Requires Moderation``.
 	
 	"""
 	try:
-		list_msg = ListMessage.objects.select_related(depth=1).get(pk=list_msg_id, status=ListMessage.UNPROCESSED)
+		list_msg = ListMessage.objects.select_related('mailing_list').get(pk=list_msg_id, status=ListMessage.UNPROCESSED)
 	except ListMessage.DoesNotExist:
 		return
 	
@@ -106,9 +111,10 @@ def check_list_message_perms(list_msg_id):
 		list_msg.status = ListMessage.REJECTED
 	
 	list_msg.save()
+	prep_list_message.delay(list_msg_id)
 
 
-@task
+@task(ignore_result=True)
 def prep_list_message(list_msg_id):
 	"""
 	Prepares the message to be sent to a particular list by setting the headers and performing any other final processing.
@@ -120,14 +126,15 @@ def prep_list_message(list_msg_id):
 		return
 	
 	list_msg.status = ListMessage.PREPPED
-	list_msg.save()
 	
 	msg = list_msg.get_processed()
 	set_list_headers(msg, list_msg.mailing_list)
 	list_msg.set_processed(msg)
+	list_msg.save()
+	send_list_msg.delay(list_msg_id)
 
 
-@task
+@task(ignore_result=True)
 def send_list_message(list_msg_id):
 	"""
 	Sends the message to its list.

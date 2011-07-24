@@ -1,4 +1,4 @@
-from email.utils import get_addresses
+from email.utils import getaddresses
 
 from django.core.mail.message import make_msgid
 from django.utils.translation import ugettext_lazy as _
@@ -62,9 +62,9 @@ def message_to_django(msg):
 	# For now, let later header values override earlier ones. TODO: This should be more complex.
 	headers = dict([(k.lower(), v) for k, v in msg.items()])
 	
-	to = [addr[1] for addr in get_addresses(headers.pop('to', ''))]
-	cc = [addr[1] for addr in get_addresses(headers.pop('cc', ''))]
-	bcc = [addr[1] for addr in get_addresses(headers.pop('bcc', ''))]
+	to = [addr[1] for addr in getaddresses(headers.pop('to', ''))]
+	cc = [addr[1] for addr in getaddresses(headers.pop('cc', ''))]
+	bcc = [addr[1] for addr in getaddresses(headers.pop('bcc', ''))]
 	
 	kwargs = {
 		'subject': headers.pop('subject', ''),

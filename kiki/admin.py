@@ -1,20 +1,21 @@
 from django.contrib import admin
 from django import forms
-from models import MailingList, EmailAddress, ListEmailMetadata
+from models import MailingList, ListUserMetadata, Message, ListMessage
 
 
 COLLAPSE_OPEN_CLASSES = ('collapse', 'open', 'collapse-open',)
 
 
-class ListEmailMetadataInline(admin.TabularInline):
-	model = ListEmailMetadata
-	raw_id_fields = ['email']
+class ListUserMetadataInline(admin.TabularInline):
+	model = ListUserMetadata
+	raw_id_fields = ['user']
 	radio_fields = {'status': admin.VERTICAL}
+	extra=0
 
 
-class ListEmailMetadataAdmin(admin.ModelAdmin):
-	raw_id_fields = ['email']
-	search_fields = ['email__email']
+class ListUserMetadataAdmin(admin.ModelAdmin):
+	raw_id_fields = ['user']
+	search_fields = ['user__email']
 	list_filter = ['status', 'mailing_list']
 	radio_fields = {'status': admin.VERTICAL}
 
@@ -52,27 +53,30 @@ class MailingListAdmin(admin.ModelAdmin):
 				'who_can_post',
 				'self_subscribe_enabled',
 				'subject_prefix',
+				'moderation_enabled',
 			)
 		}),
 	)
 	radio_fields = {'who_can_post': admin.VERTICAL}
 	prepopulated_fields = {'local_part': ('name',)}
-	inlines = [ListEmailMetadataInline]
+	inlines = [ListUserMetadataInline]
 
 
-class EmailAddressAdmin(admin.ModelAdmin):
-	search_fields = ['email']
+class ListMessageInline(admin.StackedInline):
+	model = ListMessage
+	extra = 0
+	radio_fields = {'status': admin.VERTICAL}
+	fields = ('message', 'mailing_list', 'status',)
+	raw_id_fields = ('message', 'mailing_list')
+
+
+class MessageAdmin(admin.ModelAdmin):
+	search_fields = ('from_email',)
+	inlines = [ListMessageInline]
+	fields = ('message_id', 'from_email', 'received', 'status', 'original_message')
 	radio_fields = {'status': admin.VERTICAL}
 
 
-"""
-class MailingListInline(admin.TabularInline):
-	model = MailingList
-	filter_horizontal = ['mailing_lists']
-
-USER_INLINES = [MailingListInline,]
-GROUP_INLINES = [MailingListInline,]
-"""
 admin.site.register(MailingList, MailingListAdmin)
-admin.site.register(EmailAddress, EmailAddressAdmin)
-admin.site.register(ListEmailMetadata, ListEmailMetadataAdmin)
+admin.site.register(ListUserMetadata, ListUserMetadataAdmin)
+admin.site.register(Message, MessageAdmin)
