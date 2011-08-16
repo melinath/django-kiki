@@ -62,13 +62,13 @@ class MailingListManager(models.Manager):
 		
 		for addr in addresses:
 			addr = addr.rsplit('@', 1)
-			if addr[1] == site.domain_name:
+			if addr[1] == site.domain:
 				local_parts.append(addr[0])
 		
 		if not local_parts:
 			return self.none()
 		
-		return self.filter(site=site, local_part__in=local_parts)
+		return self.filter(domain=site, local_part__in=local_parts)
 
 
 class MailingList(models.Model):

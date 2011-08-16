@@ -1,6 +1,6 @@
 from email.utils import getaddresses
 
-from django.core.mail.message import make_msgid
+from django.core.mail.message import make_msgid, EmailMessage
 from django.utils.translation import ugettext_lazy as _
 
 from kiki.message import KikiMessage
@@ -60,16 +60,16 @@ def message_to_django(msg):
 		attachments = None
 	
 	# For now, let later header values override earlier ones. TODO: This should be more complex.
-	headers = dict([(k.lower(), v) for k, v in msg.items()])
+	headers = dict([(k.lower(), v) for k, v in msg.items() if k not in ('to', 'cc', 'bcc')])
 	
-	to = [addr[1] for addr in getaddresses(headers.pop('to', ''))]
-	cc = [addr[1] for addr in getaddresses(headers.pop('cc', ''))]
-	bcc = [addr[1] for addr in getaddresses(headers.pop('bcc', ''))]
+	to = [addr[1] for addr in getaddresses(msg.get_all('to', []))]
+	cc = [addr[1] for addr in getaddresses(msg.get_all('cc', []))]
+	bcc = [addr[1] for addr in getaddresses(msg.get_all('bcc', []))]
 	
 	kwargs = {
 		'subject': headers.pop('subject', ''),
 		'body': body,
-		'from_email': headers.pop('From', ''),
+		'from_email': headers.pop('from', ''),
 		'to': to,
 		'bcc': bcc,
 		'attachments': attachments,
@@ -109,3 +109,13 @@ def set_user_headers(msg, user):
 		'x-recipient': "<%s>" % user.email,
 		'x-subscriber': "<%s>" % user.email
 	})
+
+def create_test_email(from_email, to, subject='hello', body='This is clearly a test.', headers=None):
+	"""
+	Returns a string representation of an email message.
+	
+	"""
+	headers = headers or {}
+	msg = EmailMessage(subject, body, from_email, to, headers=headers)
+	msg_str = msg.message().as_string()
+	return msg_str

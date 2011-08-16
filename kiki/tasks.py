@@ -7,7 +7,7 @@ from celery.decorators import task
 from django.core.mail import get_connection
 from django.db.models import Q
 
-from kiki.models import Message, ListMessage
+from kiki.models import MailingList, Message, ListMessage
 from kiki.utils import message_to_django, sanitize_headers, set_list_headers, set_user_headers
 
 
