@@ -1,3 +1,4 @@
+from __future__ import with_statement
 from datetime import datetime
 from email import message_from_string
 import smtplib
@@ -5,6 +6,7 @@ from socket import error as socket_error
 
 from celery.decorators import task
 from django.core.mail import get_connection
+from django.db import transaction
 from django.db.models import Q
 
 from kiki.models import MailingList, Message, ListMessage
@@ -45,12 +47,6 @@ def attach_message_to_lists(msg_id):
 	except Message.DoesNotExist:
 		return
 	
-	if msg.status == msg.RECEIVED:
-		msg.status = msg.ATTACHED
-	else:
-		msg.status = msg.ATT_COMM
-	msg.save()
-	
 	pmsg = msg.get_processed()
 	recipients = pmsg.to + pmsg.cc + pmsg.bcc
 	if not recipients:
@@ -58,9 +54,16 @@ def attach_message_to_lists(msg_id):
 	
 	lists = MailingList.objects.for_addresses(recipients)
 	
-	for list_ in lists:
-		list_msg = ListMessage.objects.create(message=msg, mailing_list=list_, processed_message=msg.processed_message)
-		check_list_message_perms.delay(list_msg.pk)
+	with transaction.commit_on_success():
+		for list_ in lists:
+			list_msg = ListMessage.objects.create(message=msg, mailing_list=list_, processed_message=msg.processed_message)
+			check_list_message_perms.delay(list_msg.pk)
+		
+		if msg.status == msg.RECEIVED:
+			msg.status = msg.ATTACHED
+		else:
+			msg.status = msg.PROCESSED
+		msg.save()
 
 
 @task(ignore_result=True)
@@ -131,7 +134,7 @@ def prep_list_message(list_msg_id):
 	set_list_headers(msg, list_msg.mailing_list)
 	list_msg.set_processed(msg)
 	list_msg.save()
-	send_list_msg.delay(list_msg_id)
+	send_list_message.delay(list_msg_id)
 
 
 @task(ignore_result=True)
@@ -144,9 +147,6 @@ def send_list_message(list_msg_id):
 		list_msg = ListMessage.objects.select_related('mailing_list').get(pk=list_msg_id, status=ListMessage.PREPPED)
 	except ListMessage.DoesNotExist:
 		return
-	
-	list_msg.status = ListMessage.SENT
-	list_msg.save()
 	
 	msg = list_msg.get_processed()
 	recipients = list_msg.mailing_list.get_recipients().only('email')
@@ -167,3 +167,6 @@ def send_list_message(list_msg_id):
 			failed.append(user)
 			# reset the connection.
 			connection = None
+	
+	list_msg.status = ListMessage.SENT
+	list_msg.save()

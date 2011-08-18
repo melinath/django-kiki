@@ -144,7 +144,7 @@ class MailingList(models.Model):
 	def get_recipients(self):
 		"""Returns a queryset of :class:`User`\ s that should receive this message."""
 		qs = User.objects.filter(is_active=True)
-		qs = qs.filter(listusermetadata_set__mailing_list=self, listusermedatata_set__status__in=[ListUserMetadata.SUBSCRIBER, ListUserMetadata.MODERATOR])
+		qs = qs.filter(listusermetadata__mailing_list=self, listusermetadata__status__in=[ListUserMetadata.SUBSCRIBER, ListUserMetadata.MODERATOR])
 		return qs.distinct()
 	
 	def _is_email_with_status(self, email, status):
@@ -209,13 +209,13 @@ class Message(ProcessedMessageModel):
 	RECEIVED = 1
 	ATTACHED = 2
 	COMMANDS = 3
-	ATT_COMM = 4
+	PROCESSED = 4
 	
 	STATUS_CHOICES = (
 		(RECEIVED, 'Received'),
 		(ATTACHED, 'Attached to mailing lists'),
 		(COMMANDS, 'Commands run'),
-		(ATT_COMM, 'Attached to mailing lists and commands run')
+		(PROCESSED, 'Processing complete')
 	)
 	
 	message_id = models.CharField(max_length=255, unique=True)

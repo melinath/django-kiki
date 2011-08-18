@@ -84,9 +84,10 @@ def set_list_headers(msg, list_):
 	Modifies the headers of a django.core.mail.EmailMessage in-place for a specific list.
 	
 	"""
+	reply_to = msg.extra_headers.get('reply-to', None)
 	msg.extra_headers.update({
 		'X-Been-There': list_.address,
-		'Reply-To': ', '.join((msg.extra_headers['reply-to'], list_.address)),
+		'Reply-To': ', '.join(() if reply_to is None else (reply_to,) + (list_.address,)),
 		'List-Id': list_._list_id_header(),
 		'List-Post': list_._command_header(),
 		'List-Subscribe': list_._command_header('subscribe'),
