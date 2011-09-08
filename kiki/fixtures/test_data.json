@@ -1,0 +1,109 @@
+[
+    {
+        "pk": 1, 
+        "model": "kiki.listusermetadata", 
+        "fields": {
+            "status": 1, 
+            "user": 1, 
+            "mailing_list": 1
+        }
+    }, 
+    {
+        "pk": 1, 
+        "model": "kiki.mailinglist", 
+        "fields": {
+            "domain": 1, 
+            "description": "", 
+            "moderation_enabled": false, 
+            "local_part": "hello-world", 
+            "who_can_post": "all", 
+            "subject_prefix": "", 
+            "self_subscribe_enabled": false, 
+            "name": "Hello World"
+        }
+    }, 
+    {
+        "pk": 1, 
+        "model": "kiki.message", 
+        "fields": {
+            "status": "p", 
+            "received": "2011-09-07 23:31:43", 
+            "processed_message": "gAJja2lraS5tZXNzYWdlCktpa2lNZXNzYWdlCnEBKYFxAn1xAyhVBGJvZHlxBFUXVGhpcyBpcyBj\nbGVhcmx5IGEgdGVzdC5xBVUNZXh0cmFfaGVhZGVyc3EGfXEHKFUKbWVzc2FnZS1pZFUmPDIwMTEw\nOTA4MDMzMTQzLjEyMTY0LjU3NjA3QEdlbmV2aWV2ZT5xCFUKcHJlY2VkZW5jZVUEbGlzdHEJVRlj\nb250ZW50LXRyYW5zZmVyLWVuY29kaW5nVQQ3Yml0cQpVAnRvVRdoZWxsby13b3JsZEBleGFtcGxl\nLmNvbXELVQRkYXRlVR9UaHUsIDA4IFNlcCAyMDExIDAzOjMxOjQzIC0wMDAwcQxVDG1pbWUtdmVy\nc2lvblUDMS4wcQ1VDGNvbnRlbnQtdHlwZVUbdGV4dC9wbGFpbjsgY2hhcnNldD0idXRmLTgicQ51\nVQthdHRhY2htZW50c3EPXVUCY2NxEF1VCmZyb21fZW1haWxxEVURdW51c2VkQHVudXNlZC5jb21x\nElUCdG9xE11xFFUXaGVsbG8td29ybGRAZXhhbXBsZS5jb21xFWFVCmNvbm5lY3Rpb25xFk5VA2Jj\nY3EXXVUHc3ViamVjdHEYVQVoZWxsb3EZdWIu\n", 
+            "original_message": "Content-Type: text/plain; charset=\"utf-8\"\nMIME-Version: 1.0\nContent-Transfer-Encoding: 7bit\nSubject: hello\nFrom: unused@unused.com\nTo: hello-world@example.com\nDate: Thu, 08 Sep 2011 03:31:43 -0000\nMessage-ID: <20110908033143.12164.57607@Genevieve>\n\nThis is clearly a test.", 
+            "from_email": "unused@unused.com", 
+            "message_id": "<20110908033143.12164.57607@Genevieve>"
+        }
+    }, 
+    {
+        "pk": 2, 
+        "model": "kiki.message", 
+        "fields": {
+            "status": "p", 
+            "received": "2011-09-07 23:58:35", 
+            "processed_message": "gAJja2lraS5tZXNzYWdlCktpa2lNZXNzYWdlCnEBKYFxAn1xAyhVBGJvZHlxBFUXVGhpcyBpcyBj\nbGVhcmx5IGEgdGVzdC5xBVUNZXh0cmFfaGVhZGVyc3EGfXEHKFUKbWVzc2FnZS1pZFUmPDIwMTEw\nOTA4MDM1ODM1LjEyNDM3LjczMTA5QEdlbmV2aWV2ZT5xCFUKcHJlY2VkZW5jZVUEbGlzdHEJVRlj\nb250ZW50LXRyYW5zZmVyLWVuY29kaW5nVQQ3Yml0cQpVAnRvVRdoZWxsby13b3JsZEBleGFtcGxl\nLmNvbXELVQRkYXRlVR9UaHUsIDA4IFNlcCAyMDExIDAzOjU4OjM1IC0wMDAwcQxVDG1pbWUtdmVy\nc2lvblUDMS4wcQ1VDGNvbnRlbnQtdHlwZVUbdGV4dC9wbGFpbjsgY2hhcnNldD0idXRmLTgicQ51\nVQthdHRhY2htZW50c3EPXVUCY2NxEF1VCmZyb21fZW1haWxxEVURdW51c2VkQHVudXNlZC5jb21x\nElUCdG9xE11xFFUXaGVsbG8td29ybGRAZXhhbXBsZS5jb21xFWFVCmNvbm5lY3Rpb25xFk5VA2Jj\nY3EXXVUHc3ViamVjdHEYVQVoZWxsb3EZdWIu\n", 
+            "original_message": "Content-Type: text/plain; charset=\"utf-8\"\nMIME-Version: 1.0\nContent-Transfer-Encoding: 7bit\nSubject: hello\nFrom: unused@unused.com\nTo: hello-world@example.com\nDate: Thu, 08 Sep 2011 03:58:35 -0000\nMessage-ID: <20110908035835.12437.73109@Genevieve>\n\nThis is clearly a test.", 
+            "from_email": "unused@unused.com", 
+            "message_id": "<20110908035835.12437.73109@Genevieve>"
+        }
+    }, 
+    {
+        "pk": 3, 
+        "model": "kiki.message", 
+        "fields": {
+            "status": "u", 
+            "received": "2011-09-08 00:08:25", 
+            "processed_message": "gAJja2lraS5tZXNzYWdlCktpa2lNZXNzYWdlCnEBKYFxAn1xAyhVBGJvZHlxBFUXVGhpcyBpcyBj\nbGVhcmx5IGEgdGVzdC5xBVUNZXh0cmFfaGVhZGVyc3EGfXEHKFUKbWVzc2FnZS1pZFUmPDIwMTEw\nOTA4MDQwODI1LjEyNTAxLjI2MTE3QEdlbmV2aWV2ZT5xCFUKcHJlY2VkZW5jZVUEbGlzdHEJVRlj\nb250ZW50LXRyYW5zZmVyLWVuY29kaW5nVQQ3Yml0cQpVAnRvVRdoZWxsby13b3JsZEBleGFtcGxl\nLmNvbXELVQRkYXRlVR9UaHUsIDA4IFNlcCAyMDExIDA0OjA4OjI1IC0wMDAwcQxVDG1pbWUtdmVy\nc2lvblUDMS4wcQ1VDGNvbnRlbnQtdHlwZVUbdGV4dC9wbGFpbjsgY2hhcnNldD0idXRmLTgicQ51\nVQthdHRhY2htZW50c3EPXVUCY2NxEF1VCmZyb21fZW1haWxxEVURdW51c2VkQHVudXNlZC5jb21x\nElUCdG9xE11xFFUXaGVsbG8td29ybGRAZXhhbXBsZS5jb21xFWFVCmNvbm5lY3Rpb25xFk5VA2Jj\nY3EXXVUHc3ViamVjdHEYVQVoZWxsb3EZdWIu\n", 
+            "original_message": "Content-Type: text/plain; charset=\"utf-8\"\nMIME-Version: 1.0\nContent-Transfer-Encoding: 7bit\nSubject: hello\nFrom: unused@unused.com\nTo: hello-world@example.com\nDate: Thu, 08 Sep 2011 04:08:25 -0000\nMessage-ID: <20110908040825.12501.26117@Genevieve>\n\nThis is clearly a test.", 
+            "from_email": "unused@unused.com", 
+            "message_id": "<20110908040825.12501.26117@Genevieve>"
+        }
+    }, 
+    {
+        "pk": 1, 
+        "model": "kiki.listmessage", 
+        "fields": {
+            "status": 1, 
+            "processed_message": "gAJja2lraS5tZXNzYWdlCktpa2lNZXNzYWdlCnEBKYFxAn1xAyhVBGJvZHlxBFUXVGhpcyBpcyBj\nbGVhcmx5IGEgdGVzdC5xBVUNZXh0cmFfaGVhZGVyc3EGfXEHKFUKbWVzc2FnZS1pZFUmPDIwMTEw\nOTA4MDMzMTQzLjEyMTY0LjU3NjA3QEdlbmV2aWV2ZT5xCFUKcHJlY2VkZW5jZVUEbGlzdHEJVRlj\nb250ZW50LXRyYW5zZmVyLWVuY29kaW5nVQQ3Yml0cQpVAnRvVRdoZWxsby13b3JsZEBleGFtcGxl\nLmNvbXELVQRkYXRlVR9UaHUsIDA4IFNlcCAyMDExIDAzOjMxOjQzIC0wMDAwcQxVDG1pbWUtdmVy\nc2lvblUDMS4wcQ1VDGNvbnRlbnQtdHlwZVUbdGV4dC9wbGFpbjsgY2hhcnNldD0idXRmLTgicQ51\nVQthdHRhY2htZW50c3EPXVUCY2NxEF1VCmZyb21fZW1haWxxEVURdW51c2VkQHVudXNlZC5jb21x\nElUCdG9xE11xFFUXaGVsbG8td29ybGRAZXhhbXBsZS5jb21xFWFVCmNvbm5lY3Rpb25xFk5VA2Jj\nY3EXXVUHc3ViamVjdHEYVQVoZWxsb3EZdWIu\n", 
+            "message": 1, 
+            "mailing_list": 1
+        }
+    }, 
+    {
+        "pk": 1, 
+        "model": "kiki.listcommand", 
+        "fields": {
+            "status": 3, 
+            "message": 1, 
+            "command": "post", 
+            "mailing_list": 1
+        }
+    }, 
+    {
+        "pk": 2, 
+        "model": "kiki.listcommand", 
+        "fields": {
+            "status": 1, 
+            "message": 2, 
+            "command": "post", 
+            "mailing_list": 1
+        }
+    }, 
+    {
+        "pk": 1, 
+        "model": "auth.user", 
+        "fields": {
+            "username": "test", 
+            "first_name": "", 
+            "last_name": "", 
+            "is_active": true, 
+            "is_superuser": true, 
+            "is_staff": true, 
+            "last_login": "2011-07-24 16:24:20", 
+            "groups": [], 
+            "user_permissions": [], 
+            "password": "sha1$7ab7f$96dc84cd08beabfc4b840cbf720dd8a693882b43", 
+            "email": "test@test.com", 
+            "date_joined": "2011-07-24 16:17:03"
+        }
+    }
+]

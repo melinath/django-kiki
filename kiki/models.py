@@ -17,7 +17,6 @@ from django.utils import simplejson as json
 from django.utils.encoding import smart_str
 
 
-from kiki.commands import is_command
 from kiki.message import KikiMessage
 from kiki.validators import validate_local_part, validate_not_command
 
@@ -82,7 +81,7 @@ class MailingList(models.Model):
 	SUBSCRIBERS = "sub"
 	ANYONE = "all"
 	
-	SUBSCRIPTION_CHOICES = (
+	PERMISSION_CHOICES = (
 		(MODERATORS, 'Moderators',),
 		(SUBSCRIBERS, 'Subscribers',),
 		(ANYONE, 'Anyone',),
@@ -94,9 +93,9 @@ class MailingList(models.Model):
 	domain = models.ForeignKey(Site)
 	description = models.TextField(blank=True)
 	
-	who_can_post = models.CharField(max_length=3, choices=SUBSCRIPTION_CHOICES)
+	who_can_post = models.CharField(max_length=3, choices=PERMISSION_CHOICES)
 	self_subscribe_enabled = models.BooleanField(verbose_name='self-subscribe enabled')
-	moderation_enabled = models.BooleanField(help_text="If enabled, messages will be marked ``Requires Moderation`` and an email will be sent to the list's moderators.")
+	moderation_enabled = models.BooleanField(help_text="If enabled, messages that would be rejected will be marked ``Requires Moderation`` and an email will be sent to the list's moderators.")
 	# If is_anonymous becomes an option, the precooker will need to handle some anonymizing.
 	#is_anonymous = models.BooleanField()
 	
@@ -118,13 +117,6 @@ class MailingList(models.Model):
 	@property
 	def address(self):
 		return "%s@%s" % (self.local_part, self.domain.domain)
-	
-	def _command_header(self, command_str=None):
-		if command_str:
-			addr = "%s+%s@%s" % (self.local_part, command_str, self.domain.domain)
-		else:
-			addr = self.address
-		return "<mailto:%s>" % addr
 	
 	def _list_id_header(self):
 		# Does this need to be a byte string?
@@ -206,16 +198,14 @@ class Message(ProcessedMessageModel):
 	Represents an email received by Kiki. Stores the original received message as well as a pickled version of the processed message.
 	
 	"""
-	RECEIVED = 1
-	ATTACHED = 2
-	COMMANDS = 3
-	PROCESSED = 4
+	UNPROCESSED = 'u'
+	PROCESSED = 'p'
+	FAILED = 'f'
 	
 	STATUS_CHOICES = (
-		(RECEIVED, 'Received'),
-		(ATTACHED, 'Attached to mailing lists'),
-		(COMMANDS, 'Commands run'),
-		(PROCESSED, 'Processing complete')
+		(UNPROCESSED, 'Unprocessed'),
+		(PROCESSED, 'Processed'),
+		(FAILED, 'Failed'),
 	)
 	
 	message_id = models.CharField(max_length=255, unique=True)
@@ -225,7 +215,7 @@ class Message(ProcessedMessageModel):
 	
 	received = models.DateTimeField()
 	
-	status = models.PositiveIntegerField(choices=STATUS_CHOICES, db_index=True, default=RECEIVED)
+	status = models.CharField(max_length=1, choices=STATUS_CHOICES, db_index=True, default=UNPROCESSED)
 	
 	original_message = models.TextField(help_text="The original raw text of the message.")
 
@@ -235,19 +225,15 @@ class ListMessage(ProcessedMessageModel):
 	Represents the relationship between a :class:`Message` and a :class:`MailingList`. This is what is processed to handle the sending of a message to a list rather than the original message.
 	
 	"""
-	UNPROCESSED = 1
+	ACCEPTED = 1
 	REQUIRES_MODERATION = 2
-	REJECTED = 3
-	ACCEPTED = 4
-	PREPPED = 5
-	SENT = 6
-	FAILED = 7
+	PREPPED = 3
+	SENT = 4
+	FAILED = 5
 	
 	STATUS_CHOICES = (
-		(UNPROCESSED, 'Unprocessed'),
-		(REQUIRES_MODERATION, 'Requires Moderation'),
-		(REJECTED, 'Rejected'),
 		(ACCEPTED, 'Accepted'),
+		(REQUIRES_MODERATION, 'Requires Moderation'),
 		(PREPPED, 'Prepped'),
 		(SENT, 'Sent'),
 		(FAILED, 'Failed'),
@@ -255,23 +241,27 @@ class ListMessage(ProcessedMessageModel):
 	
 	message = models.ForeignKey(Message)
 	mailing_list = models.ForeignKey(MailingList)
-	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True, default=UNPROCESSED)
+	status = models.PositiveSmallIntegerField(choices=STATUS_CHOICES, db_index=True)
 	
 	class Meta:
 		unique_together = ('message', 'mailing_list',)
 
 
 class ListCommand(models.Model):
+	#: The ListCommand has not been processed.
 	UNPROCESSED = 1
+	#: The ListCommand has been rejected (e.g. for permissioning reasons.)
 	REJECTED = 2
-	ACCEPTED = 3
-	COMPLETED = 4
+	#: Ths ListCommand has been processed completely.
+	PROCESSED = 3
+	#: An error occurred while processing the ListCommand.
+	FAILED = 4
 	
 	STATUS_CHOICES = (
 		(UNPROCESSED, 'Unprocessed'),
 		(REJECTED, 'Rejected'),
-		(ACCEPTED, 'Accepted'),
-		(COMPLETED, 'Completed'),
+		(PROCESSED, 'Processed'),
+		(FAILED, 'Failed'),
 	)
 	
 	message = models.ForeignKey(Message)

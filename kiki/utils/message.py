@@ -1,17 +1,25 @@
-from email.utils import getaddresses
+from email.utils import formatdate, getaddresses
 
 from django.core.mail.message import make_msgid, EmailMessage
 from django.utils.translation import ugettext_lazy as _
 
-from kiki.message import KikiMessage
-
 
 NO_SUBJECT = _(u"(no subject)")
+COMMANDS = (
+	'post',
+	'subscribe',
+	'unsubscribe',
+	'bounce',
+	# "Request" is the odd one out... Just returns
+	# "information on how to administer subscriptions"
+	# See http://www.jamesshuggins.com/h/web1/list-email-headers.htm
+	'request',
+)
 
 
 def sanitize_headers(msg):
 	"""
-	Set and modify headers on an email.Message that need to be there no matter which list the message ends up being delivered to. Also remove headers that need to *not* be there.
+	Set and modify headers on an :class:`email.Message` that need to be there no matter which list the message ends up being delivered to. Also remove headers that need to *not* be there.
 	
 	"""
 	if 'message-id' not in msg:
@@ -48,35 +56,13 @@ def sanitize_headers(msg):
 	del msg['archived-at']
 
 
-def message_to_django(msg):
-	"""Given a python :class:`email.Message` object, return a corresponding class:`kiki.message.KikiMessage` object."""
-	payload = msg.get_payload()
-	if msg.is_multipart():
-		# TODO: is this the correct way to determine "body" vs "attachments"?
-		body = payload[0]
-		attachments = payload[1:]
+def _build_command_header(mailing_list, command=None):
+	"""Builds a command header for a mailing list and a given command."""
+	if command:
+		addr = "%s+%s@%s" % (mailing_list.local_part, command, mailing_list.domain.domain)
 	else:
-		body = payload
-		attachments = None
-	
-	# For now, let later header values override earlier ones. TODO: This should be more complex.
-	headers = dict([(k.lower(), v) for k, v in msg.items() if k not in ('to', 'cc', 'bcc')])
-	
-	to = [addr[1] for addr in getaddresses(msg.get_all('to', []))]
-	cc = [addr[1] for addr in getaddresses(msg.get_all('cc', []))]
-	bcc = [addr[1] for addr in getaddresses(msg.get_all('bcc', []))]
-	
-	kwargs = {
-		'subject': headers.pop('subject', ''),
-		'body': body,
-		'from_email': headers.pop('from', ''),
-		'to': to,
-		'bcc': bcc,
-		'attachments': attachments,
-		'headers': headers,
-		'cc': cc
-	}
-	return KikiMessage(**kwargs)
+		addr = mailing_list.address
+	return "<mailto:%s>" % addr
 
 
 def set_list_headers(msg, list_):
@@ -89,11 +75,12 @@ def set_list_headers(msg, list_):
 		'X-Been-There': list_.address,
 		'Reply-To': ', '.join(() if reply_to is None else (reply_to,) + (list_.address,)),
 		'List-Id': list_._list_id_header(),
-		'List-Post': list_._command_header(),
-		'List-Subscribe': list_._command_header('subscribe'),
-		'List-Unsubscribe': list_._command_header('unsubscribe'),
-		'List-Help': list_._command_header('help'),
-		'List-Archive': list_._command_header('archive'),
+		'List-Post': _build_command_header(list_),
+		'List-Subscribe': _build_command_header(list_, 'subscribe'),
+		'List-Unsubscribe': _build_command_header(list_, 'unsubscribe'),
+		'List-Help': _build_command_header(list_, 'help'),
+		# TODO: List-Archive should be a view.
+		#'List-Archive': _build_command_header(list_, 'archive'),
 		#'List-Owner': list_._command_header('owner'),
 	})
 	
@@ -110,6 +97,31 @@ def set_user_headers(msg, user):
 		'x-recipient': "<%s>" % user.email,
 		'x-subscriber': "<%s>" % user.email
 	})
+
+
+def parse_command_addr(addr):
+	"""
+	Given an address, returns a (local_part, command, address) tuple.
+	
+	"""
+	local, domain = addr.rsplit("@", 1)
+	command = local.rsplit("+", 1)
+	try:
+		command = command[1]
+	except IndexError:
+		command = None
+	
+	if command:
+		if command in COMMANDS:
+			local = local[:-(len(command) + 1)]
+		else:
+			command = None
+	
+	# Default to posting.
+	command = command or 'post'
+	
+	return local, command, domain
+
 
 def create_test_email(from_email, to, subject='hello', body='This is clearly a test.', headers=None):
 	"""
