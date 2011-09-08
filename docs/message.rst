@@ -1,0 +1,4 @@
+Email
+=====
+
+.. automodule:: kiki.message
