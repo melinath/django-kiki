@@ -44,7 +44,7 @@ setup(
 	version = '.'.join([str(v) for v in version]),
 	url = "http://github.com/melinath/kiki/",
 	description = "An app designed to streamline User-based mailing lists for django.",
-	long_description = open(os.path.join(root_dir, 'README')).read(),
+	long_description = open(os.path.join(root_dir, 'README.rst')).read(),
 	maintainer = "Stephen Burrows",
 	maintainer_email = "stephen.r.burrows@gmail.com",
 	packages = packages,
@@ -67,7 +67,7 @@ setup(
 	license = 'BSD License',
 	
 	install_requires = [
-#		'django>=1.3',
-#		'python>=2.5.4',
+		'django>=1.3',
+		'django-celery>=2.'
 	],
 )
