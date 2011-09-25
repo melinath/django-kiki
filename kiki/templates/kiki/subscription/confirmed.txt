@@ -1,0 +1,1 @@
+{% load kiki_tags %}You have been confirmed as a subscriber to {{ mailing_list.name }}. You may unsubscribe at any time by emailing {{ mailing_list|list_command:"unsubscribe" }}.

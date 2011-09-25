@@ -1,0 +1,2 @@
+You've asked to be subscribed to {{ mailing_list.name }}. If this is correct,
+please go to {{ confirmation_link }} to confirm your subscription or simply reply to this email.

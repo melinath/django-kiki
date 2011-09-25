@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, email_re
 from django.utils.translation import ugettext_lazy as _
 
-from kiki.utils.message import parse_command_addr
+from kiki.utils.message import parse_command_address
 
 
 __all__ = ('EmailDomainValidator', 'EmailNameValidator')
@@ -40,6 +40,6 @@ def validate_not_command(local_part):
 	Validates that the email is not a command.
 	
 	"""
-	local, command, domain = parse_command_addr(local_part + "@")
+	local, command, domain = parse_command_address(local_part + "@")
 	if command:
 		raise ValidationError(u"`%s` is a command and cannot be used as part of an email address." % command)

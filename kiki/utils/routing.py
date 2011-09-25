@@ -7,7 +7,7 @@ from django.db import transaction
 
 from kiki.message import KikiMessage
 from kiki.models import Message, MailingList, ListCommand, ListMessage
-from kiki.utils.message import parse_command_addr, set_list_headers, set_user_headers, sanitize_headers
+from kiki.utils.message import parse_command_address, set_list_headers, set_user_headers, sanitize_headers
 
 
 def receive_email(msg_str):
@@ -50,7 +50,7 @@ def create_message_commands(msg):
 	cmd_recips = {}
 	
 	for recipient in recipients:
-		local, cmd, domain = parse_command_addr(recipient)
+		local, cmd, domain = parse_command_address(recipient)
 		cmd_recips.setdefault(cmd, []).append('@'.join((local, domain)))
 	
 	try:

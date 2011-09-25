@@ -1,20 +1,10 @@
 from email.utils import formatdate, getaddresses
 
-from django.core.mail.message import make_msgid, EmailMessage
+from django.core.mail.message import make_msgid
 from django.utils.translation import ugettext_lazy as _
 
 
 NO_SUBJECT = _(u"(no subject)")
-COMMANDS = (
-	'post',
-	'subscribe',
-	'unsubscribe',
-	'bounce',
-	# "Request" is the odd one out... Just returns
-	# "information on how to administer subscriptions"
-	# See http://www.jamesshuggins.com/h/web1/list-email-headers.htm
-	'request',
-)
 
 
 def sanitize_headers(msg):
@@ -97,38 +87,3 @@ def set_user_headers(msg, user):
 		'x-recipient': "<%s>" % user.email,
 		'x-subscriber': "<%s>" % user.email
 	})
-
-
-def parse_command_addr(addr):
-	"""
-	Given an address, returns a (local_part, command, address) tuple.
-	
-	"""
-	local, domain = addr.rsplit("@", 1)
-	command = local.rsplit("+", 1)
-	try:
-		command = command[1]
-	except IndexError:
-		command = None
-	
-	if command:
-		if command in COMMANDS:
-			local = local[:-(len(command) + 1)]
-		else:
-			command = None
-	
-	# Default to posting.
-	command = command or 'post'
-	
-	return local, command, domain
-
-
-def create_test_email(from_email, to, subject='hello', body='This is clearly a test.', headers=None):
-	"""
-	Returns a string representation of an email message.
-	
-	"""
-	headers = headers or {}
-	msg = EmailMessage(subject, body, from_email, to, headers=headers)
-	msg_str = msg.message().as_string()
-	return msg_str
