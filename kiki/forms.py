@@ -1,5 +1,3 @@
-import logging
-
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
@@ -7,7 +5,6 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 from kiki.models import MailingList, ListUserMetadata
-from kiki.fields import MailingListMultipleChoiceField
 
 
 SUBSCRIPTION_USER_PASSWORD = '!KIKI!'
@@ -26,11 +23,11 @@ class HoneypotForm(forms.Form):
 
 
 class SubscriptionForm(HoneypotForm):
-	mailing_list = forms.models.ModelChoiceField(MailingList.objects.filter(self_subscribe_enabled=True))
 	email = forms.EmailField()
 	
-	logger = logging.getLogger('kiki.subscription')
-	template = "kiki/notifications/subscription_confirm.eml"
+	def __init__(self, *args, **kwargs):
+		super(SubscriptionForm, self).__init__(*args, **kwargs)
+		self.fields['mailing_list'] = forms.models.ModelChoiceField(MailingList.objects.filter(self_subscribe_enabled=True, domain=Site.objects.get_current()))
 	
 	def clean_email(self):
 		email = self.cleaned_data['email']
@@ -54,21 +51,16 @@ class SubscriptionForm(HoneypotForm):
 				# TODO:: Should the validation error be more generic? Is this a
 				# security issue?
 				if self._metadata_cache.status == ListUserMetadata.BLACKLISTED:
-					self.logger.warning("An attempt to subscribe %(email)s to %(list)s was halted because %(email)s is blacklisted." % {
-						'email': user.email,
-						'list': mailing_list.name
-					})
 					raise ValidationError("Sorry, but that email has been blacklisted for the selected list.")
 				if self._metadata_cache.status != ListUserMetadata.UNCONFIRMED:
-					self.logger.warning("An attempt to subscribe %(email)s to %(list)s was halted because %(email)s is already subscribed." % {
-						'email': user.email,
-						'list': mailing_list.name
-					})
 					raise ValidationError("That email is already subscribed to the selected list.")
 		return cleaned_data
 	
 	def save(self):
-		# Send a confirmation email to the address for the selected mailing list.
+		"""
+		Ensures that the :class:`User` exists and that a :class:`.ListUserMetadata` instance exists linking it to the correct :class:`.MailingList`, and returns a (mailing_list, user, metadata) tuple.
+		
+		"""
 		mailing_list = self.cleaned_data['mailing_list']
 		user = self.cleaned_data['email']
 		
@@ -77,7 +69,4 @@ class SubscriptionForm(HoneypotForm):
 		
 		if self._metadata_cache is None:
 			self._metadata_cache = ListUserMetadata.objects.create(user=user, mailing_list=mailing_list)
-		
-		self.logger.info("A subscription confirmation email has been sent to %s." % user.email)
-		
-		send_confirmation_email(mailing_list, email, self.template)
+		return mailing_list, user, self._metadata_cache

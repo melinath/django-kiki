@@ -4,6 +4,8 @@ from django.conf import settings
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import int_to_base36, base36_to_int
 
+from kiki.models import ListUserMetadata
+
 
 class SubscriptionTokenGenerator(PasswordResetTokenGenerator):
 	"""
@@ -13,11 +15,11 @@ class SubscriptionTokenGenerator(PasswordResetTokenGenerator):
 	"""
 	def check_token(self, metadata, token, timeout_days=1):
 		"""
-		Check that a registration token is correct for a given :class:`ListUserMetadata`.
+		Check that a registration token is correct for a given :class:`.ListUserMetadata`.
 		
 		"""
 		# If the email is already subscribed, the hash isn't be valid.
-		if metadata.status == metadata.SUBSCRIBED:
+		if metadata.status == ListUserMetadata.SUBSCRIBER:
 			return False
 		
 		# Parse the token

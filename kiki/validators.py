@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, email_re
 from django.utils.translation import ugettext_lazy as _
 
-from kiki.utils.message import parse_command_address
+from kiki.utils.commands import parse_command_address
 
 
 __all__ = ('EmailDomainValidator', 'EmailNameValidator')

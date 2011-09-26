@@ -38,7 +38,4 @@ def parse_command_address(address):
 		else:
 			command = None
 	
-	# Default to posting.
-	command = command or 'post'
-	
 	return local, command, domain

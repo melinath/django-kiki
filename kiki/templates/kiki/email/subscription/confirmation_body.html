@@ -1,0 +1,1 @@
+{% load url from future %}{% url "kiki_confirm_subscription" mid_b36=mid token=token as url %}There has been a request to subscribe {{ email }} to {{ mailing_list.name }}. If you initiated this request, please go to <a href="{{ url }}">{{ url }}</a> to confirm your subscription.

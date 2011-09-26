@@ -93,9 +93,9 @@ class MailingList(models.Model):
 	domain = models.ForeignKey(Site)
 	description = models.TextField(blank=True)
 	
-	who_can_post = models.CharField(max_length=3, choices=PERMISSION_CHOICES)
-	self_subscribe_enabled = models.BooleanField(verbose_name='self-subscribe enabled')
-	moderation_enabled = models.BooleanField(help_text="If enabled, messages that would be rejected will be marked ``Requires Moderation`` and an email will be sent to the list's moderators.")
+	who_can_post = models.CharField(max_length=3, choices=PERMISSION_CHOICES, default=SUBSCRIBERS)
+	self_subscribe_enabled = models.BooleanField(verbose_name='self-subscribe enabled', default=True)
+	moderation_enabled = models.BooleanField(help_text="If enabled, messages that would be rejected will be marked ``Requires Moderation`` and an email will be sent to the list's moderators.", default=False)
 	# If is_anonymous becomes an option, the precooker will need to handle some anonymizing.
 	#is_anonymous = models.BooleanField()
 	
