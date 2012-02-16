@@ -1,2 +1,3 @@
 *.pyc
 docs/_build
+example_project/db.sl3
