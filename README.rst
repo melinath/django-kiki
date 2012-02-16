@@ -25,7 +25,10 @@ Mailman is a grand old thing. However, there are some major sticking points, whi
 +--------------------------------------+--------------------------------------+
 | Documents are wiki-based or not      | Sphinx documentation is in a         |
 | easily buildable.                    | separate directory from the code.    |
-|                                      | (Readthedocs coming soon!)           |
+|                                      | You can also find the docs           |
+|                                      | `on readthedocs.org`_.               |
 +--------------------------------------+--------------------------------------+
 | Message queueing baked in.           | Uses ``django-celery`` for queues.   |
 +--------------------------------------+--------------------------------------+
+
+.. _on readthedocs.org: http://readthedocs.org/docs/kiki
