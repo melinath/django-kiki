@@ -1,7 +1,7 @@
 include README.rst
 include LICENSE
 include MANIFEST.in
-recursive-include kiki/templates *.html
+recursive-include kiki/templates *.html *.txt
 recursive-include kiki/fixtures *.json
 recursive-include kiki/static *.css *.js
 recursive-include docs *.py *.rst *.bat *.txt Makefile

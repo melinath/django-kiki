@@ -14,7 +14,7 @@ setup(
 	maintainer="Stephen Burrows",
 	maintainer_email="stephen.r.burrows@gmail.com",
 	packages=find_packages(exclude=('example_project',)),
-	include_package_files=True,
+	include_package_data=True,
 	
 	classifiers=[
 		'Development Status :: Pre-Alpha',
