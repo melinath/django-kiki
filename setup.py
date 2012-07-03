@@ -3,7 +3,7 @@
 from setuptools import setup, find_packages
 import os
 
-version = __import__('kiki').VERSION
+version = __import__('kiki').__version__
 
 setup(
 	name='django-kiki',

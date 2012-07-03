@@ -1,1 +1,1 @@
-VERSION = (0, 1, 'pre-alpha')
+__version__ = (0, 1, 'pre-alpha')
